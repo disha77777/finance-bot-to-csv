@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Financial Analysis Chatbot</title>
+	<style>
+		body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 20px; }
+		#chat { max-width: 900px; margin: 0 auto; }
+		textarea { width: 100%; min-height: 80px; }
+		input[type="text"] { width: 100%; }
+		button { padding: 8px 12px; }
+		#response { white-space: pre-wrap; margin-top: 16px; }
+		#rows { margin-top: 16px; font-size: 14px; }
+		.row { padding: 8px; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 8px; }
+		.row h4 { margin: 0 0 6px; font-size: 15px; }
+	</style>
+</head>
+<body>
+	<div id="chat">
+		<h2>Financial Analysis Chatbot</h2>
+		<label>Question</label>
+		<textarea id="message" placeholder="e.g., Summarize Oracle Q1 FY26 results"></textarea>
+		<label>URLs (optional; comma-separated)</label>
+		<input id="urls" type="text" placeholder="https://example.com/article, https://example.com/press-release">
+		<br><br>
+		<button id="send">Ask</button>
+		<button id="download">Download CSV</button>
+		<div id="response"></div>
+		<div id="rows"></div>
+	</div>
+	<script>
+		async function ask() {
+			const message = document.getElementById('message').value.trim();
+			const urlsRaw = document.getElementById('urls').value.trim();
+			const urls = urlsRaw ? urlsRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
+			document.getElementById('response').textContent = 'Thinking...';
+			document.getElementById('rows').innerHTML = '';
+			const res = await fetch('/api/chat', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ message, urls })
+			});
+			const data = await res.json();
+			document.getElementById('response').textContent = (data.summaries && data.summaries.length) ? data.summaries.join('\n') : 'No narrative could be composed from sources.';
+			if (Array.isArray(data.rows)) {
+				const container = document.getElementById('rows');
+				data.rows.forEach(r => {
+					const div = document.createElement('div');
+					div.className = 'row';
+					div.innerHTML = `<h4>${r.title || '(no title)'} </h4>
+						<div><b>URL:</b> <a href="${r.url}" target="_blank">${r.url}</a></div>
+						<div><b>Summary:</b> ${r.summary || ''}</div>`;
+					container.appendChild(div);
+				});
+			}
+		}
+
+		async function downloadCSV() {
+			const message = document.getElementById('message').value.trim();
+			const urlsRaw = document.getElementById('urls').value.trim();
+			const urls = urlsRaw ? urlsRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
+			const res = await fetch('/api/chat_csv', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ message, urls })
+			});
+			const blob = await res.blob();
+			const link = document.createElement('a');
+			link.href = URL.createObjectURL(blob);
+			link.download = 'finance_results.csv';
+			document.body.appendChild(link);
+			link.click();
+			link.remove();
+		}
+
+		document.getElementById('send').addEventListener('click', ask);
+		document.getElementById('download').addEventListener('click', downloadCSV);
+	</script>
+</body>
+</html>
